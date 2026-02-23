@@ -1,0 +1,127 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn var(--transition-fast) ease-out;
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp var(--transition-normal) ease-out;
+}
+
+/* Sizes */
+.modal-small {
+  width: 100%;
+  max-width: 400px;
+}
+
+.modal-medium {
+  width: 100%;
+  max-width: 560px;
+}
+
+.modal-large {
+  width: 100%;
+  max-width: 800px;
+}
+
+.modal-xlarge {
+  width: 100%;
+  max-width: 1000px;
+}
+
+.modal-full {
+  width: calc(100% - 2rem);
+  height: calc(100% - 2rem);
+  max-width: none;
+}
+
+/* Header */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  transition: all var(--transition-fast);
+}
+
+.modal-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Body */
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Footer */
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+  
+  .modal {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: 85vh;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .modal-footer {
+    flex-direction: column;
+  }
+  
+  .modal-footer .btn {
+    width: 100%;
+  }
+}
