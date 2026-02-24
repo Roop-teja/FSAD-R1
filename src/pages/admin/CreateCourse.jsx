@@ -1,37 +1,72 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
+import Modal from '../../components/common/Modal';
 import {
   FiSave,
   FiX,
   FiUpload,
   FiDollarSign,
   FiClock,
-  FiUser
+  FiUser,
+  FiPlus,
+  FiTrash2,
+  FiEdit2,
+  FiChevronDown,
+  FiChevronUp,
+  FiVideo,
+  FiFileText,
+  FiLink,
+  FiMove
 } from 'react-icons/fi';
 import './CreateCourse.css';
 
 const CreateCourse = () => {
-  const { addCourse } = useData();
+  const { addCourse, updateCourse, getCourseById } = useData();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id } = useParams();
   
+  const isEditing = !!id;
+  const existingCourse = isEditing ? getCourseById(id) : null;
+
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: 'Web Development',
-    level: 'Beginner',
-    duration: '',
-    price: '',
-    image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400'
+    title: existingCourse?.title || '',
+    description: existingCourse?.description || '',
+    category: existingCourse?.category || 'Web Development',
+    level: existingCourse?.level || 'Beginner',
+    duration: existingCourse?.duration || '',
+    price: existingCourse?.price || '',
+    image: existingCourse?.image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400'
   });
-  
+
+  const [modules, setModules] = useState(existingCourse?.modules || []);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  
+  // Module modal state
+  const [showModuleModal, setShowModuleModal] = useState(false);
+  const [editingModule, setEditingModule] = useState(null);
+  const [moduleForm, setModuleForm] = useState({ title: '', description: '' });
+  
+  // Lesson modal state
+  const [showLessonModal, setShowLessonModal] = useState(false);
+  const [editingLesson, setEditingLesson] = useState(null);
+  const [currentModuleId, setCurrentModuleId] = useState(null);
+  const [lessonForm, setLessonForm] = useState({
+    title: '',
+    type: 'video',
+    duration: '',
+    content: '',
+    description: ''
+  });
+  
+  // Expanded modules state
+  const [expandedModules, setExpandedModules] = useState({});
 
   const categories = [
     'Web Development',
@@ -45,6 +80,12 @@ const CreateCourse = () => {
   ];
 
   const levels = ['Beginner', 'Intermediate', 'Advanced', 'All Levels'];
+
+  const lessonTypes = [
+    { value: 'video', label: 'Video', icon: <FiVideo /> },
+    { value: 'article', label: 'Article', icon: <FiFileText /> },
+    { value: 'resource', label: 'Resource/Link', icon: <FiLink /> }
+  ];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -79,6 +120,133 @@ const CreateCourse = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Module functions
+  const openModuleModal = (module = null) => {
+    if (module) {
+      setEditingModule(module);
+      setModuleForm({ title: module.title, description: module.description || '' });
+    } else {
+      setEditingModule(null);
+      setModuleForm({ title: '', description: '' });
+    }
+    setShowModuleModal(true);
+  };
+
+  const handleModuleSubmit = () => {
+    if (!moduleForm.title.trim()) return;
+
+    if (editingModule) {
+      setModules(prev => prev.map(m => 
+        m.id === editingModule.id 
+          ? { ...m, title: moduleForm.title, description: moduleForm.description }
+          : m
+      ));
+    } else {
+      const newModule = {
+        id: `module-${Date.now()}`,
+        title: moduleForm.title,
+        description: moduleForm.description,
+        lessons: [],
+        order: modules.length + 1
+      };
+      setModules(prev => [...prev, newModule]);
+      setExpandedModules(prev => ({ ...prev, [newModule.id]: true }));
+    }
+    setShowModuleModal(false);
+    setModuleForm({ title: '', description: '' });
+  };
+
+  const deleteModule = (moduleId) => {
+    setModules(prev => prev.filter(m => m.id !== moduleId));
+  };
+
+  const toggleModuleExpand = (moduleId) => {
+    setExpandedModules(prev => ({ ...prev, [moduleId]: !prev[moduleId] }));
+  };
+
+  const moveModule = (index, direction) => {
+    const newModules = [...modules];
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= newModules.length) return;
+    [newModules[index], newModules[newIndex]] = [newModules[newIndex], newModules[index]];
+    newModules.forEach((m, i) => m.order = i + 1);
+    setModules(newModules);
+  };
+
+  // Lesson functions
+  const openLessonModal = (moduleId, lesson = null) => {
+    setCurrentModuleId(moduleId);
+    if (lesson) {
+      setEditingLesson(lesson);
+      setLessonForm({
+        title: lesson.title,
+        type: lesson.type || 'video',
+        duration: lesson.duration || '',
+        content: lesson.content || '',
+        description: lesson.description || ''
+      });
+    } else {
+      setEditingLesson(null);
+      setLessonForm({
+        title: '',
+        type: 'video',
+        duration: '',
+        content: '',
+        description: ''
+      });
+    }
+    setShowLessonModal(true);
+  };
+
+  const handleLessonSubmit = () => {
+    if (!lessonForm.title.trim()) return;
+
+    const newLesson = {
+      id: editingLesson?.id || `lesson-${Date.now()}`,
+      title: lessonForm.title,
+      type: lessonForm.type,
+      duration: lessonForm.duration,
+      content: lessonForm.content,
+      description: lessonForm.description,
+      completed: editingLesson?.completed || false
+    };
+
+    setModules(prev => prev.map(m => {
+      if (m.id === currentModuleId) {
+        const lessons = editingLesson
+          ? m.lessons.map(l => l.id === editingLesson.id ? newLesson : l)
+          : [...m.lessons, newLesson];
+        return { ...m, lessons };
+      }
+      return m;
+    }));
+
+    setShowLessonModal(false);
+    setLessonForm({ title: '', type: 'video', duration: '', content: '', description: '' });
+  };
+
+  const deleteLesson = (moduleId, lessonId) => {
+    setModules(prev => prev.map(m => {
+      if (m.id === moduleId) {
+        return { ...m, lessons: m.lessons.filter(l => l.id !== lessonId) };
+      }
+      return m;
+    }));
+  };
+
+  const moveLesson = (moduleId, index, direction) => {
+    setModules(prev => prev.map(m => {
+      if (m.id === moduleId) {
+        const newLessons = [...m.lessons];
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= newLessons.length) return m;
+        [newLessons[index], newLessons[newIndex]] = [newLessons[newIndex], newLessons[index]];
+        return { ...m, lessons: newLessons };
+      }
+      return m;
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -86,24 +254,53 @@ const CreateCourse = () => {
     
     setLoading(true);
     
-    const newCourse = addCourse({
+    const courseData = {
       ...formData,
       price: parseFloat(formData.price),
-      instructor: user?.name || 'Instructor'
+      instructor: user?.name || 'Instructor',
+      modules: modules
+    };
+
+    if (isEditing) {
+      updateCourse(id, courseData);
+      setTimeout(() => {
+        setLoading(false);
+        navigate(`/admin/courses`);
+      }, 1000);
+    } else {
+      const newCourse = addCourse(courseData);
+      setTimeout(() => {
+        setLoading(false);
+        navigate(`/admin/courses`);
+      }, 1000);
+    }
+  };
+
+  const getTotalLessons = () => {
+    return modules.reduce((total, m) => total + m.lessons.length, 0);
+  };
+
+  const getTotalDuration = () => {
+    let totalMinutes = 0;
+    modules.forEach(m => {
+      m.lessons.forEach(l => {
+        if (l.duration) {
+          const mins = parseInt(l.duration) || 0;
+          totalMinutes += mins;
+        }
+      });
     });
-    
-    setTimeout(() => {
-      setLoading(false);
-      navigate(`/admin/course/${newCourse.id}`);
-    }, 1000);
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
   return (
     <div className="create-course-page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Create New Course</h1>
-          <p className="page-subtitle">Fill in the details to create a new course</p>
+          <h1 className="page-title">{isEditing ? 'Edit Course' : 'Create New Course'}</h1>
+          <p className="page-subtitle">{isEditing ? 'Update course details and content' : 'Fill in the details to create a new course'}</p>
         </div>
         <div className="page-actions">
           <Button variant="ghost" onClick={() => navigate('/admin/courses')}>
@@ -200,6 +397,174 @@ const CreateCourse = () => {
                 />
               </div>
             </Card>
+
+            {/* Modules Section */}
+            <Card className="form-section modules-section">
+              <div className="section-header">
+                <h3 className="section-title">Course Content</h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="small"
+                  icon={<FiPlus />}
+                  onClick={() => openModuleModal()}
+                >
+                  Add Module
+                </Button>
+              </div>
+
+              {modules.length === 0 ? (
+                <div className="empty-modules">
+                  <div className="empty-icon">📚</div>
+                  <h4>No modules yet</h4>
+                  <p>Add modules to structure your course content</p>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    icon={<FiPlus />}
+                    onClick={() => openModuleModal()}
+                  >
+                    Add Your First Module
+                  </Button>
+                </div>
+              ) : (
+                <div className="modules-list">
+                  {/* Stats */}
+                  <div className="modules-stats">
+                    <span><strong>{modules.length}</strong> Modules</span>
+                    <span><strong>{getTotalLessons()}</strong> Lessons</span>
+                    <span><strong>{getTotalDuration()}</strong> Total Duration</span>
+                  </div>
+
+                  {modules.map((module, moduleIndex) => (
+                    <div key={module.id} className="module-item">
+                      <div className="module-header">
+                        <div className="module-info">
+                          <button
+                            type="button"
+                            className="expand-btn"
+                            onClick={() => toggleModuleExpand(module.id)}
+                          >
+                            {expandedModules[module.id] ? <FiChevronUp /> : <FiChevronDown />}
+                          </button>
+                          <span className="module-number">Module {module.order}</span>
+                          <h4 className="module-title">{module.title}</h4>
+                          <span className="lesson-count">{module.lessons.length} lessons</span>
+                        </div>
+                        <div className="module-actions">
+                          <button
+                            type="button"
+                            className="action-btn move-btn"
+                            onClick={() => moveModule(moduleIndex, 'up')}
+                            disabled={moduleIndex === 0}
+                            title="Move up"
+                          >
+                            <FiMove />
+                          </button>
+                          <button
+                            type="button"
+                            className="action-btn move-btn"
+                            onClick={() => moveModule(moduleIndex, 'down')}
+                            disabled={moduleIndex === modules.length - 1}
+                            title="Move down"
+                          >
+                            <FiMove style={{ transform: 'rotate(180deg)' }} />
+                          </button>
+                          <button
+                            type="button"
+                            className="action-btn edit-btn"
+                            onClick={() => openModuleModal(module)}
+                            title="Edit module"
+                          >
+                            <FiEdit2 />
+                          </button>
+                          <button
+                            type="button"
+                            className="action-btn delete-btn"
+                            onClick={() => deleteModule(module.id)}
+                            title="Delete module"
+                          >
+                            <FiTrash2 />
+                          </button>
+                        </div>
+                      </div>
+
+                      {expandedModules[module.id] && (
+                        <div className="module-content">
+                          {module.description && (
+                            <p className="module-description">{module.description}</p>
+                          )}
+                          
+                          <div className="lessons-list">
+                            {module.lessons.map((lesson, lessonIndex) => (
+                              <div key={lesson.id} className="lesson-item">
+                                <div className="lesson-info">
+                                  <span className="lesson-type-icon">
+                                    {lesson.type === 'video' && <FiVideo />}
+                                    {lesson.type === 'article' && <FiFileText />}
+                                    {lesson.type === 'resource' && <FiLink />}
+                                  </span>
+                                  <span className="lesson-title">{lesson.title}</span>
+                                  {lesson.duration && (
+                                    <span className="lesson-duration">{lesson.duration} min</span>
+                                  )}
+                                </div>
+                                <div className="lesson-actions">
+                                  <button
+                                    type="button"
+                                    className="action-btn move-btn"
+                                    onClick={() => moveLesson(module.id, lessonIndex, 'up')}
+                                    disabled={lessonIndex === 0}
+                                    title="Move up"
+                                  >
+                                    <FiMove />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="action-btn move-btn"
+                                    onClick={() => moveLesson(module.id, lessonIndex, 'down')}
+                                    disabled={lessonIndex === module.lessons.length - 1}
+                                    title="Move down"
+                                  >
+                                    <FiMove style={{ transform: 'rotate(180deg)' }} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="action-btn edit-btn"
+                                    onClick={() => openLessonModal(module.id, lesson)}
+                                    title="Edit lesson"
+                                  >
+                                    <FiEdit2 />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="action-btn delete-btn"
+                                    onClick={() => deleteLesson(module.id, lesson.id)}
+                                    title="Delete lesson"
+                                  >
+                                    <FiTrash2 />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="small"
+                              className="add-lesson-btn"
+                              icon={<FiPlus />}
+                              onClick={() => openLessonModal(module.id)}
+                            >
+                              Add Lesson
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           </div>
 
           {/* Sidebar */}
@@ -251,15 +616,151 @@ const CreateCourse = () => {
                 loading={loading}
                 icon={<FiSave />}
               >
-                Create Course
+                {isEditing ? 'Update Course' : 'Create Course'}
               </Button>
               <p className="form-hint">
-                You can add modules and lessons after creating the course.
+                {modules.length === 0 
+                  ? 'Add modules to structure your course content.'
+                  : `${modules.length} modules with ${getTotalLessons()} lessons ready.`
+                }
               </p>
             </Card>
           </div>
         </div>
       </form>
+
+      {/* Module Modal */}
+      <Modal
+        isOpen={showModuleModal}
+        onClose={() => setShowModuleModal(false)}
+        title={editingModule ? 'Edit Module' : 'Add New Module'}
+      >
+        <div className="modal-form">
+          <Input
+            label="Module Title"
+            name="title"
+            value={moduleForm.title}
+            onChange={(e) => setModuleForm(prev => ({ ...prev, title: e.target.value }))}
+            placeholder="e.g., Introduction to Web Development"
+          />
+          <div className="form-group">
+            <label className="input-label">Description (Optional)</label>
+            <textarea
+              value={moduleForm.description}
+              onChange={(e) => setModuleForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Brief description of what this module covers..."
+              className="textarea-field"
+              rows={3}
+            />
+          </div>
+          <div className="modal-actions">
+            <Button variant="ghost" onClick={() => setShowModuleModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleModuleSubmit}>
+              {editingModule ? 'Update Module' : 'Add Module'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Lesson Modal */}
+      <Modal
+        isOpen={showLessonModal}
+        onClose={() => setShowLessonModal(false)}
+        title={editingLesson ? 'Edit Lesson' : 'Add New Lesson'}
+      >
+        <div className="modal-form">
+          <Input
+            label="Lesson Title"
+            name="title"
+            value={lessonForm.title}
+            onChange={(e) => setLessonForm(prev => ({ ...prev, title: e.target.value }))}
+            placeholder="e.g., Getting Started with HTML"
+          />
+          
+          <div className="form-group">
+            <label className="input-label">Lesson Type</label>
+            <div className="lesson-type-selector">
+              {lessonTypes.map(type => (
+                <button
+                  key={type.value}
+                  type="button"
+                  className={`type-btn ${lessonForm.type === type.value ? 'active' : ''}`}
+                  onClick={() => setLessonForm(prev => ({ ...prev, type: type.value }))}
+                >
+                  {type.icon}
+                  <span>{type.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-row">
+            <Input
+              label="Duration (minutes)"
+              name="duration"
+              type="number"
+              value={lessonForm.duration}
+              onChange={(e) => setLessonForm(prev => ({ ...prev, duration: e.target.value }))}
+              placeholder="15"
+            />
+          </div>
+
+          {lessonForm.type === 'video' && (
+            <Input
+              label="Video URL"
+              name="content"
+              value={lessonForm.content}
+              onChange={(e) => setLessonForm(prev => ({ ...prev, content: e.target.value }))}
+              placeholder="https://youtube.com/..."
+            />
+          )}
+
+          {lessonForm.type === 'article' && (
+            <div className="form-group">
+              <label className="input-label">Article Content</label>
+              <textarea
+                value={lessonForm.content}
+                onChange={(e) => setLessonForm(prev => ({ ...prev, content: e.target.value }))}
+                placeholder="Write your article content here..."
+                className="textarea-field"
+                rows={5}
+              />
+            </div>
+          )}
+
+          {lessonForm.type === 'resource' && (
+            <Input
+              label="Resource URL"
+              name="content"
+              value={lessonForm.content}
+              onChange={(e) => setLessonForm(prev => ({ ...prev, content: e.target.value }))}
+              placeholder="https://example.com/resource"
+            />
+          )}
+
+          <div className="form-group">
+            <label className="input-label">Description (Optional)</label>
+            <textarea
+              value={lessonForm.description}
+              onChange={(e) => setLessonForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Brief description of this lesson..."
+              className="textarea-field"
+              rows={2}
+            />
+          </div>
+
+          <div className="modal-actions">
+            <Button variant="ghost" onClick={() => setShowLessonModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleLessonSubmit}>
+              {editingLesson ? 'Update Lesson' : 'Add Lesson'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
