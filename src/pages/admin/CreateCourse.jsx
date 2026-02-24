@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -21,7 +21,8 @@ import {
   FiVideo,
   FiFileText,
   FiLink,
-  FiMove
+  FiMove,
+  FiImage
 } from 'react-icons/fi';
 import './CreateCourse.css';
 
@@ -30,6 +31,7 @@ const CreateCourse = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams();
+  const fileInputRef = useRef(null);
   
   const isEditing = !!id;
   const existingCourse = isEditing ? getCourseById(id) : null;
@@ -47,6 +49,7 @@ const CreateCourse = () => {
   const [modules, setModules] = useState(existingCourse?.modules || []);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   
   // Module modal state
   const [showModuleModal, setShowModuleModal] = useState(false);
@@ -93,6 +96,43 @@ const CreateCourse = () => {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+  };
+
+  // Image upload handler
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please upload a valid image file (JPG, PNG, GIF, or WebP)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB');
+      return;
+    }
+
+    setImageUploading(true);
+
+    // Convert to base64 for preview and storage
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormData(prev => ({ ...prev, image: event.target.result }));
+      setImageUploading(false);
+    };
+    reader.onerror = () => {
+      alert('Failed to read the image file');
+      setImageUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   const validateForm = () => {
@@ -572,24 +612,50 @@ const CreateCourse = () => {
             <Card className="form-section">
               <h3 className="section-title">Course Image</h3>
               <div className="image-upload">
-                <img 
-                  src={formData.image} 
-                  alt="Course cover" 
-                  className="preview-image" 
+                <div className="image-preview-container">
+                  <img 
+                    src={formData.image} 
+                    alt="Course cover" 
+                    className="preview-image" 
+                  />
+                  {imageUploading && (
+                    <div className="image-uploading-overlay">
+                      <div className="upload-spinner"></div>
+                      <span>Uploading...</span>
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  style={{ display: 'none' }}
                 />
                 <div className="upload-actions">
-                  <Button variant="outline" size="small" icon={<FiUpload />}>
-                    Upload Image
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="small" 
+                    icon={<FiUpload />}
+                    onClick={triggerFileInput}
+                    disabled={imageUploading}
+                  >
+                    {imageUploading ? 'Uploading...' : 'Upload Image'}
                   </Button>
-                  <p className="upload-hint">Recommended: 1280x720px, JPG or PNG</p>
+                  <p className="upload-hint">Recommended: 1280x720px, JPG or PNG (max 5MB)</p>
                 </div>
               </div>
-              <Input
-                name="image"
-                value={formData.image}
-                onChange={handleChange}
-                placeholder="Image URL"
-              />
+              <div className="form-group">
+                <label className="input-label">Or enter image URL</label>
+                <Input
+                  name="image"
+                  value={formData.image.startsWith('data:') ? '' : formData.image}
+                  onChange={handleChange}
+                  placeholder="https://example.com/image.jpg"
+                  icon={<FiImage />}
+                />
+              </div>
             </Card>
 
             <Card className="form-section">
